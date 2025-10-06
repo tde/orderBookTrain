@@ -4,13 +4,14 @@ import pandas as pd
 from typing import Tuple
 
 
-def load_data(features_file: str, prices_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def load_data(features_file: str, prices_file: str, normalize: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Загрузка данных из файлов
     
     Args:
         features_file: Путь к файлу с признаками (.npy)
         prices_file: Путь к файлу с ценами (.csv)
+        normalize: Применять ли нормализацию к признакам (по умолчанию True)
         
     Returns:
         Кортеж (X, ms, mid) где:
@@ -29,6 +30,17 @@ def load_data(features_file: str, prices_file: str) -> Tuple[np.ndarray, np.ndar
     
     print("Форма массива:", X.shape)
     print("Тип данных:", X.dtype)
+    
+    # Нормализация данных (важно для стабильного обучения!)
+    if normalize:
+        # Z-score нормализация по каждому признаку
+        mean = np.mean(X, axis=0, keepdims=True)
+        std = np.std(X, axis=0, keepdims=True)
+        # Избегаем деления на 0
+        std = np.where(std < 1e-8, 1.0, std)
+        X = (X - mean) / std
+        print("✓ Данные нормализованы (z-score)")
+        print(f"  Диапазон значений: [{X.min():.2f}, {X.max():.2f}]")
     
     ms = df_p["ms"].values.astype(np.int64)
     mid = df_p["mid"].values.astype(np.float64)

@@ -56,17 +56,18 @@ class ModelConfig:
     groups: int = 8
     dropout: float = 0.3
     
-    # Loss function
+    # Loss function (КОНСЕРВАТИВНЫЕ параметры для стабильного обучения)
     use_cost_sensitive_focal: bool = True  # Использовать Cost-Sensitive Focal Loss
     use_cost_sensitive: bool = False       # Использовать только стоимостно-чувствительный лосс
     focal_alpha: list = None
-    focal_gamma: float = 4.0
-    focal_alpha_weight: float = 0.5        # Alpha weight для Focal Loss
-    cost_weight: float = 2.0               # Вес cost-sensitive компоненты
+    focal_gamma: float = 2.0               # Начинаем с умеренной фокусировки
+    focal_alpha_weight: float = 0.25       # Умеренный вес focal компоненты
+    cost_weight: float = 0.5               # Начинаем с малого веса cost компоненты
     
     def __post_init__(self):
         if self.focal_alpha is None:
-            self.focal_alpha = [22.0, 1.0, 22.0]
+            # Начинаем с умеренных весов, постепенно увеличим если нужно
+            self.focal_alpha = [5.0, 1.0, 5.0]
 
 
 @dataclass
@@ -75,8 +76,8 @@ class TrainingConfig:
     # Размеры батчей
     batch_size: int = 512
     
-    # Оптимизатор
-    learning_rate: float = 1e-3
+    # Оптимизатор (уменьшенный LR для стабильности)
+    learning_rate: float = 5e-4           # Уменьшено с 1e-3 до 5e-4
     weight_decay: float = 1e-4
     
     # Scheduler

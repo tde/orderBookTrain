@@ -28,7 +28,9 @@ class CostSensitiveLoss(nn.Module):
         # probs: softmax по классам
         probs = F.softmax(logits, dim=1)  # (B, K)
         # выбираем строку C для каждого таргета y
-        C_y = self.C[targets]  # (B, K)
+        # ВАЖНО: C должна быть на том же устройстве, что и targets
+        C = self.C.to(targets.device)
+        C_y = C[targets]  # (B, K)
         # ожидаемая стоимость = сумма p_k * C[y,k]
         loss = (probs * C_y).sum(dim=1)  # (B,)
         return loss.mean()

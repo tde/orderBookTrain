@@ -63,23 +63,37 @@ class Trainer:
                 logits = self.model(xb)
                 loss = self.criterion(logits, yb)
             
+            # Проверка на NaN/Inf в loss
+            if torch.isnan(loss) or torch.isinf(loss):
+                print(f"⚠️  WARNING: Loss is {loss.item()}, skipping batch")
+                continue
+            
             if self.scaler is not None:
                 self.scaler.scale(loss).backward()
                 self.scaler.unscale_(self.optimizer)
-                U.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
+                # Проверка градиентов на NaN
+                grad_norm = U.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
+                if torch.isnan(grad_norm) or torch.isinf(grad_norm):
+                    print(f"⚠️  WARNING: Gradient norm is {grad_norm}, skipping batch")
+                    self.optimizer.zero_grad(set_to_none=True)
+                    continue
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
             else:
                 loss.backward()
-                U.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
+                grad_norm = U.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
+                if torch.isnan(grad_norm) or torch.isinf(grad_norm):
+                    print(f"⚠️  WARNING: Gradient norm is {grad_norm}, skipping batch")
+                    self.optimizer.zero_grad(set_to_none=True)
+                    continue
                 self.optimizer.step()
             
             total_loss += loss.item() * xb.size(0)
             correct += (logits.argmax(1) == yb).sum().item()
             total_samples += xb.size(0)
         
-        train_loss = total_loss / total_samples
-        train_acc = correct / total_samples
+        train_loss = total_loss / total_samples if total_samples > 0 else float('nan')
+        train_acc = correct / total_samples if total_samples > 0 else 0.0
         
         return {
             'loss': train_loss,
