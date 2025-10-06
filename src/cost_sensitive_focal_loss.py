@@ -80,7 +80,9 @@ class CostSensitiveFocalLoss(nn.Module):
         
         # 2. Cost-Sensitive компонента
         # Получаем стоимости для всех предсказаний
-        batch_costs = self.cost_matrix[targets]  # (batch_size, num_classes)
+        # Убедимся, что cost_matrix на том же устройстве, что и targets
+        cost_matrix = self.cost_matrix.to(targets.device)
+        batch_costs = cost_matrix[targets]  # (batch_size, num_classes)
         
         # Взвешиваем предсказания по стоимости ошибок
         cost_weighted_probs = probs * batch_costs  # (batch_size, num_classes)
@@ -144,13 +146,15 @@ class AdaptiveCostSensitiveFocalLoss(nn.Module):
         focal_weight = (1 - pt) ** self.gamma
         
         # Адаптивный alpha для каждого примера
-        alpha_t = (self.alpha.unsqueeze(0) * targets_one_hot).sum(dim=1)
+        alpha = self.alpha.to(logits.device)
+        alpha_t = (alpha.unsqueeze(0) * targets_one_hot).sum(dim=1)
         
         ce_loss = F.cross_entropy(logits, targets, reduction='none')
         focal_loss = alpha_t * focal_weight * ce_loss
         
         # Cost-Sensitive компонента
-        batch_costs = self.cost_matrix[targets]
+        cost_matrix = self.cost_matrix.to(targets.device)
+        batch_costs = cost_matrix[targets]
         cost_weighted_probs = probs * batch_costs
         cost_loss = cost_weighted_probs.sum(dim=1)
         

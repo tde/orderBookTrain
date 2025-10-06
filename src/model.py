@@ -40,6 +40,8 @@ class DeepLOBLike(nn.Module):
                  groups: int = 8, 
                  dropout: float = 0.3):
         super().__init__()
+
+        print(f"input_features :{input_features}")
         
         self.stem = nn.Conv1d(input_features, hidden_size, kernel_size=1)
         
