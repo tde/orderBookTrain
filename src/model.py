@@ -4,10 +4,9 @@
 import torch
 import torch.nn as nn
 from typing import Optional
-from .focal_loss import FocalLoss
-from .cost_sensitive_loss import CostSensitiveLoss, get_default_cost_matrix
-from .cost_sensitive_focal_loss import CostSensitiveFocalLoss
-
+from focal_loss import FocalLoss
+from cost_sensitive_loss import CostSensitiveLoss, get_default_cost_matrix
+from cost_sensitive_focal_loss import CostSensitiveFocalLoss
 
 class TemporalConvBlock(nn.Module):
     """Временной сверточный блок с групповой нормализацией"""
