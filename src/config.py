@@ -50,6 +50,7 @@ class ModelConfig:
     window_length: int = 240
     
     # Архитектура модели
+    input_features: int = 211        # Количество входных признаков
     hidden_size: int = 128
     num_classes: int = 3
     groups: int = 8

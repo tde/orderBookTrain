@@ -82,7 +82,7 @@ def create_model(config) -> tuple[nn.Module, nn.Module]:
         Кортеж (модель, функция потерь)
     """
     model = DeepLOBLike(
-        input_features=138,  # Количество признаков из данных
+        input_features=getattr(config, 'input_features', 211),  # Количество признаков из конфига
         num_classes=config.num_classes,
         hidden_size=config.hidden_size,
         groups=config.groups,
