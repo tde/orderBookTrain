@@ -34,7 +34,7 @@ class Trainer:
             grad_clip_norm: Норма для обрезки градиентов
         """
         self.model = model
-        self.criterion = criterion
+        self.criterion = criterion.to(device)  # ВАЖНО: перемещаем criterion на device
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.scaler = scaler
