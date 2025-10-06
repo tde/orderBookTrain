@@ -59,13 +59,13 @@ class ModelConfig:
     use_cost_sensitive_focal: bool = True  # Использовать Cost-Sensitive Focal Loss
     use_cost_sensitive: bool = False       # Использовать только стоимостно-чувствительный лосс
     focal_alpha: list = None
-    focal_gamma: float = 2.0
-    focal_alpha_weight: float = 0.25       # Alpha weight для Focal Loss
-    cost_weight: float = 1.0               # Вес cost-sensitive компоненты
+    focal_gamma: float = 4.0
+    focal_alpha_weight: float = 0.5        # Alpha weight для Focal Loss
+    cost_weight: float = 2.0               # Вес cost-sensitive компоненты
     
     def __post_init__(self):
         if self.focal_alpha is None:
-            self.focal_alpha = [3.0, 1.0, 3.0]
+            self.focal_alpha = [22.0, 1.0, 22.0]
 
 
 @dataclass
