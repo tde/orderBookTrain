@@ -211,8 +211,19 @@ def create_model(config) -> tuple[nn.Module, nn.Module]:
     )
     
     # Создание функции потерь
-    if hasattr(config, 'use_cost_sensitive_focal') and config.use_cost_sensitive_focal:
-        # Комбинированный Cost-Sensitive Focal Loss (по умолчанию)
+    if hasattr(config, 'use_weighted_ce') and config.use_weighted_ce:
+        # НОВОЕ: Простой weighted CrossEntropyLoss с label smoothing
+        import torch
+        class_weights = torch.tensor(config.focal_alpha, dtype=torch.float32)
+        criterion = nn.CrossEntropyLoss(
+            weight=class_weights,
+            label_smoothing=getattr(config, 'label_smoothing', 0.2)
+        )
+        print(f"📉 Используется Weighted CrossEntropyLoss")
+        print(f"   Веса классов: {config.focal_alpha}")
+        print(f"   Label smoothing: {getattr(config, 'label_smoothing', 0.2)}")
+    elif hasattr(config, 'use_cost_sensitive_focal') and config.use_cost_sensitive_focal:
+        # Комбинированный Cost-Sensitive Focal Loss
         criterion = CostSensitiveFocalLoss(
             gamma=getattr(config, 'focal_gamma', 2.0),
             alpha=getattr(config, 'focal_alpha_weight', 0.25),

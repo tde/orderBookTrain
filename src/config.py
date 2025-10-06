@@ -56,19 +56,20 @@ class ModelConfig:
     groups: int = 8
     dropout: float = 0.5             # УВЕЛИЧЕН dropout (сильная регуляризация)
     
-    # Loss function (УСИЛЕННЫЕ параметры для борьбы с дисбалансом)
-    use_cost_sensitive_focal: bool = True  # Использовать Cost-Sensitive Focal Loss
-    use_cost_sensitive: bool = False       # Использовать только стоимостно-чувствительный лосс
+    # Loss function (ПРОСТОЙ weighted CE - радикальное изменение!)
+    use_cost_sensitive_focal: bool = False # ВЫКЛЮЧЕН - не помогает
+    use_cost_sensitive: bool = False       # ВЫКЛЮЧЕН
+    use_weighted_ce: bool = True           # НОВОЕ: простой weighted CrossEntropy
     focal_alpha: list = None
-    focal_gamma: float = 2.5               # Умеренная фокусировка (было 4.0 - слишком агрессивно)
-    focal_alpha_weight: float = 0.25       # Снижен обратно
-    cost_weight: float = 1.0               # Снижен обратно
-    label_smoothing: float = 0.15          # НОВОЕ: сглаживание меток против overfitting
+    focal_gamma: float = 2.5
+    focal_alpha_weight: float = 0.25
+    cost_weight: float = 1.0
+    label_smoothing: float = 0.2           # УВЕЛИЧЕНО до 0.2
     
     def __post_init__(self):
         if self.focal_alpha is None:
-            # Умеренные веса (было 23 - слишком агрессивно)
-            self.focal_alpha = [12.0, 1.0, 12.0]
+            # Веса для редких классов (используются в weighted CE)
+            self.focal_alpha = [20.0, 1.0, 20.0]
 
 
 @dataclass
@@ -77,9 +78,9 @@ class TrainingConfig:
     # Размеры батчей
     batch_size: int = 512
     
-    # Оптимизатор (уменьшенный LR для стабильности)
-    learning_rate: float = 2e-4           # Уменьшено для предотвращения overfitting
-    weight_decay: float = 5e-4            # Увеличен для лучшей регуляризации
+    # Оптимизатор (ОЧЕНЬ НИЗКИЙ LR)
+    learning_rate: float = 5e-5           # КРИТИЧЕСКИ СНИЖЕН (было 2e-4)
+    weight_decay: float = 1e-3            # УДВОЕН для сильной регуляризации
     
     # Scheduler
     scheduler_type: str = "cosine"
@@ -87,8 +88,8 @@ class TrainingConfig:
     scheduler_eta_min: float = 3e-5
     
     # Обучение
-    epochs: int = 10                  # УМЕНЬШЕНО с 15 (раньше останавливаем)
-    grad_clip_norm: float = 0.5       # УМЕНЬШЕНО (более агрессивная стрижка градиентов)
+    epochs: int = 15                  # УВЕЛИЧЕНО обратно (с низким LR нужно больше эпох)
+    grad_clip_norm: float = 0.3       # ЕЩЕ МЕНЬШЕ (очень агрессивная стрижка)
     
     # Разделение данных
     train_split: float = 0.70
