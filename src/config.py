@@ -54,20 +54,20 @@ class ModelConfig:
     hidden_size: int = 128
     num_classes: int = 3
     groups: int = 8
-    dropout: float = 0.3
+    dropout: float = 0.4             # Увеличен для борьбы с overfitting
     
-    # Loss function (КОНСЕРВАТИВНЫЕ параметры для стабильного обучения)
+    # Loss function (УСИЛЕННЫЕ параметры для борьбы с дисбалансом)
     use_cost_sensitive_focal: bool = True  # Использовать Cost-Sensitive Focal Loss
     use_cost_sensitive: bool = False       # Использовать только стоимостно-чувствительный лосс
     focal_alpha: list = None
-    focal_gamma: float = 2.0               # Начинаем с умеренной фокусировки
-    focal_alpha_weight: float = 0.25       # Умеренный вес focal компоненты
-    cost_weight: float = 0.5               # Начинаем с малого веса cost компоненты
+    focal_gamma: float = 4.0               # Увеличено для фокуса на редких классах
+    focal_alpha_weight: float = 0.35       # Увеличен вес focal компоненты
+    cost_weight: float = 1.5               # Увеличен штраф за дорогие ошибки
     
     def __post_init__(self):
         if self.focal_alpha is None:
-            # Начинаем с умеренных весов, постепенно увеличим если нужно
-            self.focal_alpha = [5.0, 1.0, 5.0]
+            # Сильно увеличены веса для редких классов (down/up)
+            self.focal_alpha = [23.0, 1.0, 23.0]
 
 
 @dataclass
@@ -77,8 +77,8 @@ class TrainingConfig:
     batch_size: int = 512
     
     # Оптимизатор (уменьшенный LR для стабильности)
-    learning_rate: float = 5e-4           # Уменьшено с 1e-3 до 5e-4
-    weight_decay: float = 1e-4
+    learning_rate: float = 2e-4           # Уменьшено для предотвращения overfitting
+    weight_decay: float = 5e-4            # Увеличен для лучшей регуляризации
     
     # Scheduler
     scheduler_type: str = "cosine"
