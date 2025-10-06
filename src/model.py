@@ -216,7 +216,8 @@ def create_model(config) -> tuple[nn.Module, nn.Module]:
         criterion = CostSensitiveFocalLoss(
             gamma=getattr(config, 'focal_gamma', 2.0),
             alpha=getattr(config, 'focal_alpha_weight', 0.25),
-            cost_weight=getattr(config, 'cost_weight', 1.0)
+            cost_weight=getattr(config, 'cost_weight', 1.0),
+            label_smoothing=getattr(config, 'label_smoothing', 0.1)
         )
     elif hasattr(config, 'use_cost_sensitive') and config.use_cost_sensitive:
         # Только стоимостно-чувствительный лосс

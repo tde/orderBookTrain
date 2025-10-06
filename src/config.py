@@ -49,25 +49,26 @@ class ModelConfig:
     horizon_sec: float = 2.0
     window_length: int = 240
     
-    # Архитектура модели
+    # Архитектура модели (УМЕНЬШЕНА для борьбы с overfitting)
     input_features: int = 211        # Количество входных признаков
-    hidden_size: int = 128
+    hidden_size: int = 96            # УМЕНЬШЕНО с 128 (меньше параметров)
     num_classes: int = 3
     groups: int = 8
-    dropout: float = 0.4             # Увеличен для борьбы с overfitting
+    dropout: float = 0.5             # УВЕЛИЧЕН dropout (сильная регуляризация)
     
     # Loss function (УСИЛЕННЫЕ параметры для борьбы с дисбалансом)
     use_cost_sensitive_focal: bool = True  # Использовать Cost-Sensitive Focal Loss
     use_cost_sensitive: bool = False       # Использовать только стоимостно-чувствительный лосс
     focal_alpha: list = None
-    focal_gamma: float = 4.0               # Увеличено для фокуса на редких классах
-    focal_alpha_weight: float = 0.35       # Увеличен вес focal компоненты
-    cost_weight: float = 1.5               # Увеличен штраф за дорогие ошибки
+    focal_gamma: float = 2.5               # Умеренная фокусировка (было 4.0 - слишком агрессивно)
+    focal_alpha_weight: float = 0.25       # Снижен обратно
+    cost_weight: float = 1.0               # Снижен обратно
+    label_smoothing: float = 0.15          # НОВОЕ: сглаживание меток против overfitting
     
     def __post_init__(self):
         if self.focal_alpha is None:
-            # Сильно увеличены веса для редких классов (down/up)
-            self.focal_alpha = [23.0, 1.0, 23.0]
+            # Умеренные веса (было 23 - слишком агрессивно)
+            self.focal_alpha = [12.0, 1.0, 12.0]
 
 
 @dataclass
@@ -86,8 +87,8 @@ class TrainingConfig:
     scheduler_eta_min: float = 3e-5
     
     # Обучение
-    epochs: int = 15
-    grad_clip_norm: float = 1.0
+    epochs: int = 10                  # УМЕНЬШЕНО с 15 (раньше останавливаем)
+    grad_clip_norm: float = 0.5       # УМЕНЬШЕНО (более агрессивная стрижка градиентов)
     
     # Разделение данных
     train_split: float = 0.70
@@ -111,6 +112,46 @@ class Config:
     data: DataConfig
     model: ModelConfig
     training: TrainingConfig
+    
+    def print_config(self):
+        """Вывести все параметры конфигурации"""
+        print("\n" + "="*70)
+        print("📋 КОНФИГУРАЦИЯ ОБУЧЕНИЯ")
+        print("="*70)
+        
+        print("\n🗂️  ДАННЫЕ:")
+        print(f"   Дни обучения: {self.data.train_dates}")
+        print(f"   День валидации: {self.data.val_date}")
+        print(f"   День тестирования: {self.data.test_date}")
+        print(f"   Папка данных: {self.data.data_folder}")
+        
+        print("\n🏗️  АРХИТЕКТУРА МОДЕЛИ:")
+        print(f"   input_features: {self.model.input_features}")
+        print(f"   hidden_size: {self.model.hidden_size}")
+        print(f"   num_classes: {self.model.num_classes}")
+        print(f"   groups: {self.model.groups}")
+        print(f"   dropout: {self.model.dropout}")
+        print(f"   window_length: {self.model.window_length}")
+        
+        print("\n📊 LOSS FUNCTION:")
+        print(f"   use_cost_sensitive_focal: {self.model.use_cost_sensitive_focal}")
+        print(f"   focal_alpha: {self.model.focal_alpha}")
+        print(f"   focal_gamma: {self.model.focal_gamma}")
+        print(f"   focal_alpha_weight: {self.model.focal_alpha_weight}")
+        print(f"   cost_weight: {self.model.cost_weight}")
+        if hasattr(self.model, 'label_smoothing'):
+            print(f"   label_smoothing: {self.model.label_smoothing}")
+        
+        print("\n⚙️  ОПТИМИЗАЦИЯ:")
+        print(f"   batch_size: {self.training.batch_size}")
+        print(f"   learning_rate: {self.training.learning_rate}")
+        print(f"   weight_decay: {self.training.weight_decay}")
+        print(f"   epochs: {self.training.epochs}")
+        print(f"   grad_clip_norm: {self.training.grad_clip_norm}")
+        print(f"   scheduler_type: {self.training.scheduler_type}")
+        print(f"   device: {self.training.device}")
+        
+        print("\n" + "="*70 + "\n")
     
     @classmethod
     def default(cls):

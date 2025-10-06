@@ -47,6 +47,67 @@ class Trainer:
         self.train_history = []
         self.val_history = []
     
+    def _print_training_info(self, train_loader: DataLoader, val_loader: DataLoader, epochs: int):
+        """Вывести информацию о модели и обучении"""
+        print("\n" + "="*70)
+        print("🚀 ИНФОРМАЦИЯ ОБ ОБУЧЕНИИ")
+        print("="*70)
+        
+        # Информация о модели
+        total_params = sum(p.numel() for p in self.model.parameters())
+        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        
+        print("\n📊 МОДЕЛЬ:")
+        print(f"   Всего параметров: {total_params:,}")
+        print(f"   Обучаемых параметров: {trainable_params:,}")
+        print(f"   Размер модели: ~{total_params * 4 / 1024 / 1024:.2f} МБ (float32)")
+        
+        # Информация о данных
+        print("\n📦 ДАННЫЕ:")
+        print(f"   Train батчей: {len(train_loader)}")
+        print(f"   Val батчей: {len(val_loader)}")
+        
+        # Проверка первого батча для размерностей
+        for xb, yb in train_loader:
+            print(f"   Размер батча: {xb.shape}")
+            print(f"   Тип данных: {xb.dtype}")
+            print(f"   Устройство: {xb.device}")
+            unique_labels, counts = torch.unique(yb, return_counts=True)
+            print(f"   Классы в батче: {unique_labels.tolist()}")
+            print(f"   Распределение: {counts.tolist()}")
+            break
+        
+        # Информация об оптимизации
+        print("\n⚙️  ОПТИМИЗАТОР:")
+        print(f"   Тип: {type(self.optimizer).__name__}")
+        print(f"   Learning rate: {self.optimizer.param_groups[0]['lr']:.2e}")
+        print(f"   Weight decay: {self.optimizer.param_groups[0]['weight_decay']:.2e}")
+        if self.scheduler is not None:
+            print(f"   Scheduler: {type(self.scheduler).__name__}")
+        print(f"   Gradient clipping: {self.grad_clip_norm}")
+        
+        # Информация о loss
+        print("\n📉 LOSS FUNCTION:")
+        print(f"   Тип: {type(self.criterion).__name__}")
+        if hasattr(self.criterion, 'gamma'):
+            print(f"   focal_gamma: {self.criterion.gamma}")
+        if hasattr(self.criterion, 'alpha'):
+            print(f"   focal_alpha_weight: {self.criterion.alpha}")
+        if hasattr(self.criterion, 'cost_weight'):
+            print(f"   cost_weight: {self.criterion.cost_weight}")
+        if hasattr(self.criterion, 'label_smoothing'):
+            print(f"   label_smoothing: {self.criterion.label_smoothing}")
+        
+        # Информация об обучении
+        print("\n🎯 ОБУЧЕНИЕ:")
+        print(f"   Эпох: {epochs}")
+        print(f"   Устройство: {self.device}")
+        print(f"   Mixed precision: {self.scaler is not None and self.scaler.is_enabled()}")
+        
+        print("\n" + "="*70)
+        print("▶️  НАЧАЛО ОБУЧЕНИЯ...")
+        print("="*70 + "\n")
+    
     def train_epoch(self, train_loader: DataLoader) -> Dict[str, float]:
         """Обучение на одной эпохе"""
         self.model.train()
@@ -161,6 +222,10 @@ class Trainer:
         Returns:
             Словарь с историей обучения и лучшим состоянием модели
         """
+        # Вывод информации о модели перед началом обучения
+        if verbose:
+            self._print_training_info(train_loader, val_loader, epochs)
+        
         for epoch in range(1, epochs + 1):
             start_time = time.time()
             

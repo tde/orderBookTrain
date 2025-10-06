@@ -26,7 +26,8 @@ class CostSensitiveFocalLoss(nn.Module):
     def __init__(self, 
                  gamma: float = 2.0,
                  alpha: float = 0.25,
-                 cost_weight: float = 1.0):
+                 cost_weight: float = 1.0,
+                 label_smoothing: float = 0.1):
         """
         Args:
             gamma: параметр фокусировки для Focal Loss (обычно 2.0)
@@ -35,11 +36,14 @@ class CostSensitiveFocalLoss(nn.Module):
             cost_weight: вес для cost-sensitive компоненты (0.0-1.0)
                         0.0 = только Focal Loss
                         1.0 = равный баланс между Focal и Cost
+            label_smoothing: сглаживание меток (0.0-0.2)
+                            уменьшает переобучение
         """
         super().__init__()
         self.gamma = gamma
         self.alpha = alpha
         self.cost_weight = cost_weight
+        self.label_smoothing = label_smoothing
         
         # Матрица стоимости ошибок
         # Строки: истинный класс [down=0, flat=1, up=2]
@@ -64,16 +68,23 @@ class CostSensitiveFocalLoss(nn.Module):
         # Вычисление вероятностей
         probs = F.softmax(logits, dim=1)
         
-        # 1. Focal Loss компонента
+        # 1. Focal Loss компонента с label smoothing
         # Вероятность правильного класса
         targets_one_hot = F.one_hot(targets, num_classes=logits.size(1)).float()
+        
+        # Label smoothing: делаем метки менее уверенными
+        if self.label_smoothing > 0:
+            n_classes = logits.size(1)
+            targets_one_hot = targets_one_hot * (1 - self.label_smoothing) + \
+                             self.label_smoothing / n_classes
+        
         pt = (probs * targets_one_hot).sum(dim=1)  # p_t для правильного класса
         
         # Focal weight: (1 - p_t)^gamma
         focal_weight = (1 - pt) ** self.gamma
         
-        # Cross entropy loss
-        ce_loss = F.cross_entropy(logits, targets, reduction='none')
+        # Cross entropy loss с label smoothing
+        ce_loss = F.cross_entropy(logits, targets, reduction='none', label_smoothing=self.label_smoothing)
         
         # Focal loss = alpha * focal_weight * ce_loss
         focal_loss = self.alpha * focal_weight * ce_loss
