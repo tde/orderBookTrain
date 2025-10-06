@@ -11,6 +11,25 @@ from cost_sensitive_loss import CostSensitiveLoss, get_default_cost_matrix
 from cost_sensitive_focal_loss import CostSensitiveFocalLoss
 
 
+class WeightedCrossEntropyLoss(nn.Module):
+    """
+    Wrapper для CrossEntropyLoss с автоматическим перемещением весов на device
+    """
+    def __init__(self, weight: torch.Tensor, label_smoothing: float = 0.0):
+        super().__init__()
+        self.register_buffer('weight', weight)
+        self.label_smoothing = label_smoothing
+    
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        # Веса автоматически на правильном device благодаря register_buffer
+        return nn.functional.cross_entropy(
+            input, 
+            target, 
+            weight=self.weight,
+            label_smoothing=self.label_smoothing
+        )
+
+
 class TemporalConvBlockWithResidual(nn.Module):
     """
     Временной сверточный блок с residual connection
@@ -215,7 +234,7 @@ def create_model(config) -> tuple[nn.Module, nn.Module]:
         # НОВОЕ: Простой weighted CrossEntropyLoss с label smoothing
         import torch
         class_weights = torch.tensor(config.focal_alpha, dtype=torch.float32)
-        criterion = nn.CrossEntropyLoss(
+        criterion = WeightedCrossEntropyLoss(
             weight=class_weights,
             label_smoothing=getattr(config, 'label_smoothing', 0.2)
         )
