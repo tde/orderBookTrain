@@ -59,9 +59,9 @@ class LazyWindowDataset(Dataset):
         # Берем окно [i : i+T]
         window = self.X2D[i : i + self.T]  # (T, F)
         # Транспонируем для Conv1d: (F, T)
-        x = torch.from_numpy(window.T.copy())
+        x = torch.from_numpy(window.T.copy()).float()  # Явно float32
         # Метка соответствует последнему элементу окна
-        y = torch.tensor(self.y_filtered[i + self.T - 1])
+        y = torch.tensor(self.y_filtered[i + self.T - 1], dtype=torch.long)
         return x, y
 
 

@@ -164,18 +164,33 @@ class DeepLOBLike(nn.Module):
         Returns:
             Логиты классификации формы (batch_size, num_classes)
         """
+        # Проверка входных данных
+        if x.dtype != torch.float32:
+            x = x.float()
+        
+        if len(x.shape) != 3:
+            raise ValueError(f"Expected 3D input (B, F, T), got shape {x.shape}")
+        
         # Stem
         x = self.stem(x)
         
         # Последовательное применение residual блоков с разными дилатациями
-        for block in self.blocks:
+        for i, block in enumerate(self.blocks):
             x = block(x)
+            # Проверка на NaN после каждого блока
+            if torch.isnan(x).any():
+                raise ValueError(f"NaN detected after block {i}")
         
         # Attention pooling
         x = self.attention(x)  # (B, hidden_size)
         
+        if torch.isnan(x).any():
+            raise ValueError(f"NaN detected after attention")
+        
         # Classification head
-        return self.head(x)
+        out = self.head(x)
+        
+        return out
 
 def create_model(config) -> tuple[nn.Module, nn.Module]:
     """
