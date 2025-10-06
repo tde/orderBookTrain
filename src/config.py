@@ -56,9 +56,12 @@ class ModelConfig:
     dropout: float = 0.3
     
     # Loss function
-    use_cost_sensitive: bool = True  # Использовать стоимостно-чувствительный лосс
+    use_cost_sensitive_focal: bool = True  # Использовать Cost-Sensitive Focal Loss
+    use_cost_sensitive: bool = False       # Использовать только стоимостно-чувствительный лосс
     focal_alpha: list = None
     focal_gamma: float = 2.0
+    focal_alpha_weight: float = 0.25       # Alpha weight для Focal Loss
+    cost_weight: float = 1.0               # Вес cost-sensitive компоненты
     
     def __post_init__(self):
         if self.focal_alpha is None:
@@ -138,12 +141,16 @@ class Config:
         )
         
         # Определяем какую функцию потерь использовать
-        use_cost_sensitive = getattr(args, 'use_cost_sensitive', True)
+        use_cost_sensitive_focal = getattr(args, 'use_cost_sensitive_focal', True)
+        use_cost_sensitive = getattr(args, 'use_cost_sensitive', False)
         use_focal_loss = getattr(args, 'use_focal_loss', False)
         
-        # Если явно указан focal loss, то используем его
+        # Приоритет: cost_sensitive_focal > cost_sensitive > focal_only
         if use_focal_loss:
+            use_cost_sensitive_focal = False
             use_cost_sensitive = False
+        elif use_cost_sensitive:
+            use_cost_sensitive_focal = False
         
         model_config = ModelConfig(
             tick_size=getattr(args, 'tick_size', 1.0),
@@ -152,7 +159,11 @@ class Config:
             window_length=getattr(args, 'window_length', 240),
             hidden_size=getattr(args, 'hidden_size', 128),
             dropout=getattr(args, 'dropout', 0.3),
-            use_cost_sensitive=use_cost_sensitive
+            use_cost_sensitive_focal=use_cost_sensitive_focal,
+            use_cost_sensitive=use_cost_sensitive,
+            focal_gamma=getattr(args, 'focal_gamma', 2.0),
+            focal_alpha_weight=getattr(args, 'focal_alpha_weight', 0.25),
+            cost_weight=getattr(args, 'cost_weight', 1.0)
         )
         
         training_config = TrainingConfig(

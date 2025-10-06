@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 from focal_loss import FocalLoss
 from cost_sensitive_loss import CostSensitiveLoss, get_default_cost_matrix
+from cost_sensitive_focal_loss import CostSensitiveFocalLoss
 
 
 def test_cost_sensitive_loss():
@@ -80,8 +81,43 @@ def test_focal_loss():
     return loss
 
 
+def test_cost_sensitive_focal_loss():
+    """Тестирование Cost-Sensitive Focal Loss"""
+    print("\nТестирование Cost-Sensitive Focal Loss...")
+    
+    # Создаем тестовые данные
+    batch_size = 4
+    num_classes = 3
+    
+    # Логиты модели (случайные)
+    logits = torch.randn(batch_size, num_classes)
+    
+    # Истинные метки
+    targets = torch.tensor([0, 1, 2, 0])  # down, flat, up, down
+    
+    # Создаем функцию потерь
+    criterion = CostSensitiveFocalLoss(
+        gamma=2.0,
+        alpha=0.25,
+        cost_weight=1.0
+    )
+    
+    # Вычисляем потери
+    loss = criterion(logits, targets)
+    
+    print(f"Логиты: {logits}")
+    print(f"Метки: {targets}")
+    print(f"Cost-Sensitive Focal Loss: {loss.item():.4f}")
+    
+    # Проверим, что потери положительные
+    assert loss.item() > 0, "Потери должны быть положительными"
+    print("✓ Cost-Sensitive Focal Loss работает корректно")
+    
+    return loss
+
+
 def compare_losses():
-    """Сравнение двух функций потерь"""
+    """Сравнение всех функций потерь"""
     print("\nСравнение функций потерь...")
     
     # Создаем тестовые данные
@@ -103,11 +139,21 @@ def compare_losses():
     focal_criterion = FocalLoss(alpha=[3.0, 1.0, 3.0], gamma=2.0)
     focal_loss = focal_criterion(logits, targets)
     
+    # Cost-Sensitive Focal Loss
+    cost_focal_criterion = CostSensitiveFocalLoss(
+        gamma=2.0,
+        alpha=0.25,
+        cost_weight=1.0
+    )
+    cost_focal_loss = cost_focal_criterion(logits, targets)
+    
     print(f"Cost-Sensitive Loss: {cost_loss.item():.4f}")
     print(f"Focal Loss: {focal_loss.item():.4f}")
-    print(f"Разница: {abs(cost_loss.item() - focal_loss.item()):.4f}")
+    print(f"Cost-Sensitive Focal Loss: {cost_focal_loss.item():.4f}")
+    print(f"Разница между Cost-Sensitive и Focal: {abs(cost_loss.item() - focal_loss.item()):.4f}")
+    print(f"Разница между Combined и Cost-Sensitive: {abs(cost_focal_loss.item() - cost_loss.item()):.4f}")
     
-    print("✓ Обе функции потерь работают корректно")
+    print("✓ Все функции потерь работают корректно")
 
 
 def main():
@@ -119,11 +165,12 @@ def main():
         # Тестируем каждую функцию потерь
         test_cost_sensitive_loss()
         test_focal_loss()
+        test_cost_sensitive_focal_loss()
         compare_losses()
         
         print("\n" + "=" * 50)
         print("✓ Все тесты пройдены успешно!")
-        print("Cost-Sensitive Loss готов к использованию в обучении.")
+        print("Cost-Sensitive Focal Loss готов к использованию в обучении.")
         
     except Exception as e:
         print(f"\n❌ Ошибка при тестировании: {e}")

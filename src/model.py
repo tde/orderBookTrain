@@ -6,6 +6,7 @@ import torch.nn as nn
 from typing import Optional
 from .focal_loss import FocalLoss
 from .cost_sensitive_loss import CostSensitiveLoss, get_default_cost_matrix
+from .cost_sensitive_focal_loss import CostSensitiveFocalLoss
 
 
 class TemporalConvBlock(nn.Module):
@@ -90,12 +91,19 @@ def create_model(config) -> tuple[nn.Module, nn.Module]:
     )
     
     # Создание функции потерь
-    if hasattr(config, 'use_cost_sensitive') and config.use_cost_sensitive:
-        # Стоимостно-чувствительный лосс
+    if hasattr(config, 'use_cost_sensitive_focal') and config.use_cost_sensitive_focal:
+        # Комбинированный Cost-Sensitive Focal Loss (по умолчанию)
+        criterion = CostSensitiveFocalLoss(
+            gamma=getattr(config, 'focal_gamma', 2.0),
+            alpha=getattr(config, 'focal_alpha_weight', 0.25),
+            cost_weight=getattr(config, 'cost_weight', 1.0)
+        )
+    elif hasattr(config, 'use_cost_sensitive') and config.use_cost_sensitive:
+        # Только стоимостно-чувствительный лосс
         cost_matrix = get_default_cost_matrix()
         criterion = CostSensitiveLoss(cost_matrix)
     else:
-        # Focal Loss (по умолчанию)
+        # Только Focal Loss
         criterion = FocalLoss(
             alpha=config.focal_alpha,
             gamma=config.focal_gamma

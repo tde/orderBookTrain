@@ -51,10 +51,18 @@ def parse_args():
                        help="Размер скрытого слоя")
     parser.add_argument("--dropout", type=float, default=0.3,
                        help="Коэффициент dropout")
-    parser.add_argument("--use_cost_sensitive", action="store_true", default=True,
-                       help="Использовать стоимостно-чувствительный лосс")
+    parser.add_argument("--use_cost_sensitive_focal", action="store_true", default=True,
+                       help="Использовать Cost-Sensitive Focal Loss (по умолчанию)")
+    parser.add_argument("--use_cost_sensitive", action="store_true", default=False,
+                       help="Использовать только стоимостно-чувствительный лосс")
     parser.add_argument("--use_focal_loss", action="store_true", default=False,
-                       help="Использовать Focal Loss вместо стоимостно-чувствительного")
+                       help="Использовать только Focal Loss")
+    parser.add_argument("--focal_gamma", type=float, default=2.0,
+                       help="Gamma для Focal Loss")
+    parser.add_argument("--focal_alpha_weight", type=float, default=0.25,
+                       help="Alpha weight для Focal Loss")
+    parser.add_argument("--cost_weight", type=float, default=1.0,
+                       help="Вес cost-sensitive компоненты")
     
     # Параметры обучения
     parser.add_argument("--batch_size", type=int, default=512,
@@ -102,7 +110,17 @@ def main():
     print(f"День тестирования: {config.data.test_date}")
     print(f"Эпохи на день: {config.training.epochs}")
     print(f"Размер батча: {config.training.batch_size}")
-    print(f"Функция потерь: {'Cost-Sensitive Loss' if config.model.use_cost_sensitive else 'Focal Loss'}")
+    # Определяем название функции потерь
+    if config.model.use_cost_sensitive_focal:
+        loss_name = "Cost-Sensitive Focal Loss"
+    elif config.model.use_cost_sensitive:
+        loss_name = "Cost-Sensitive Loss"
+    else:
+        loss_name = "Focal Loss"
+    
+    print(f"Функция потерь: {loss_name}")
+    if config.model.use_cost_sensitive_focal:
+        print(f"  Gamma: {config.model.focal_gamma}, Alpha: {config.model.focal_alpha_weight}, Cost Weight: {config.model.cost_weight}")
     print()
     
     # Загрузка и подготовка данных для обучения

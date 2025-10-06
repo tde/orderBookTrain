@@ -33,3 +33,4 @@ class FocalLoss(nn.Module):
         pt = torch.exp(-ce)
         loss = ((1 - pt) ** self.gamma) * ce
         return loss.mean() if self.reduction == "mean" else loss.sum()
+
