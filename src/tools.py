@@ -50,6 +50,9 @@ def make_windows(X2D: np.ndarray, T: int) -> tuple[np.ndarray, np.ndarray]:
     Скользящие окна по времени (каузально):
       вход: X2D (N, F)
       выход: Xwin (N-T+1, T, F), end_idx — индексы последних точек окон
+    
+    ВНИМАНИЕ: Эта функция копирует все окна в память и может потребовать много RAM!
+    Для больших датасетов используйте LazyWindowDataset из dataset.py
     """
     N, F = X2D.shape
     if N < T:
@@ -58,5 +61,36 @@ def make_windows(X2D: np.ndarray, T: int) -> tuple[np.ndarray, np.ndarray]:
     Xwin = np.lib.stride_tricks.as_strided(
         X2D, shape=(N - T + 1, T, F), strides=(s0, s0, s1)
     ).copy()
+    end_idx = np.arange(T-1, N)
+    return Xwin, end_idx
+
+
+def make_windows_chunked(X2D: np.ndarray, T: int, chunk_size: int = 10000) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Память-эффективная версия make_windows, обрабатывающая данные чанками.
+    
+    Args:
+        X2D: Входные данные формы (N, F)
+        T: Размер окна
+        chunk_size: Количество окон для обработки за раз
+        
+    Returns:
+        Xwin: Массив окон формы (N-T+1, T, F)
+        end_idx: Индексы последних точек окон
+    """
+    N, F = X2D.shape
+    if N < T:
+        raise ValueError(f"Мало данных для окна: N={N} < T={T}")
+    
+    num_windows = N - T + 1
+    # Выделяем память для результата
+    Xwin = np.empty((num_windows, T, F), dtype=X2D.dtype)
+    
+    # Обрабатываем чанками, чтобы не перегружать память
+    for start_idx in range(0, num_windows, chunk_size):
+        end_idx = min(start_idx + chunk_size, num_windows)
+        for i in range(start_idx, end_idx):
+            Xwin[i] = X2D[i:i+T]
+    
     end_idx = np.arange(T-1, N)
     return Xwin, end_idx

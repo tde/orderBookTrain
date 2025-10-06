@@ -30,6 +30,41 @@ class NpWindowDataset(Dataset):
         return x, y
 
 
+class LazyWindowDataset(Dataset):
+    """
+    Dataset создающий окна "на лету" без предварительного копирования всех данных.
+    Экономит память при работе с большими датасетами.
+    """
+    
+    def __init__(self, X2D: np.ndarray, y_filtered: np.ndarray, window_length: int):
+        """
+        Args:
+            X2D: 2D массив признаков формы (N, F) - исходные данные
+            y_filtered: Массив меток формы (N,) - метки для каждой строки
+            window_length: Длина окна T
+        """
+        if X2D.shape[0] < window_length:
+            raise ValueError(f"Мало данных для окна: N={X2D.shape[0]} < T={window_length}")
+        
+        self.X2D = X2D.astype(np.float32, copy=False)
+        self.y_filtered = y_filtered.astype(np.int64, copy=False)
+        self.T = window_length
+        self.N, self.F = X2D.shape
+        
+    def __len__(self) -> int:
+        return self.N - self.T + 1
+    
+    def __getitem__(self, i: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Создает окно на лету для индекса i"""
+        # Берем окно [i : i+T]
+        window = self.X2D[i : i + self.T]  # (T, F)
+        # Транспонируем для Conv1d: (F, T)
+        x = torch.from_numpy(window.T.copy())
+        # Метка соответствует последнему элементу окна
+        y = torch.tensor(self.y_filtered[i + self.T - 1])
+        return x, y
+
+
 class BalancedBatchSampler(Sampler):
     """
     Формирует батчи одинакового размера из равного числа классов (по возможности).
@@ -113,7 +148,7 @@ def create_data_loaders(X_train: np.ndarray,
     Создать DataLoader'ы для обучения, валидации и тестирования
     
     Args:
-        X_train, X_val, X_test: Массивы признаков
+        X_train, X_val, X_test: Массивы признаков (уже оконные данные формы (N, T, F))
         y_train, y_val, y_test: Массивы меток
         batch_size: Размер батча
         num_classes: Количество классов
@@ -140,5 +175,55 @@ def create_data_loaders(X_train: np.ndarray,
     train_dl = DataLoader(train_ds, batch_sampler=batch_sampler)
     val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
     test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+    
+    return train_dl, val_dl, test_dl
+
+
+def create_lazy_data_loaders(X2D_train: np.ndarray, 
+                             y_train: np.ndarray,
+                             X2D_val: np.ndarray, 
+                             y_val: np.ndarray,
+                             X2D_test: np.ndarray, 
+                             y_test: np.ndarray,
+                             window_length: int,
+                             batch_size: int = 512,
+                             num_classes: int = 3,
+                             seed: int = 42) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """
+    Создать память-эффективные DataLoader'ы с lazy окнами
+    
+    Args:
+        X2D_train, X2D_val, X2D_test: 2D массивы признаков формы (N, F)
+        y_train, y_val, y_test: Массивы меток формы (N,)
+        window_length: Длина окна T
+        batch_size: Размер батча
+        num_classes: Количество классов
+        seed: Семя для воспроизводимости
+        
+    Returns:
+        Кортеж (train_loader, val_loader, test_loader)
+    """
+    # Создаем LazyWindowDataset'ы
+    train_ds = LazyWindowDataset(X2D_train, y_train, window_length)
+    val_ds = LazyWindowDataset(X2D_val, y_val, window_length)
+    test_ds = LazyWindowDataset(X2D_test, y_test, window_length)
+    
+    # Для lazy dataset нужно создать метки для окон
+    # Метка окна = метка последнего элемента
+    y_train_windowed = y_train[window_length-1:]
+    
+    # Создаем сбалансированный sampler для обучения
+    base_sampler = BalancedBatchSampler(
+        y_train_windowed, 
+        batch_size=batch_size, 
+        num_classes=num_classes, 
+        seed=seed
+    )
+    batch_sampler = BalancedBatchBatchSampler(base_sampler, batch_size)
+    
+    # Создаем DataLoader'ы
+    train_dl = DataLoader(train_ds, batch_sampler=batch_sampler, num_workers=0)
+    val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+    test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0)
     
     return train_dl, val_dl, test_dl
