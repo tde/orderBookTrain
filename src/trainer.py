@@ -128,6 +128,7 @@ class Trainer:
             # Проверка на NaN/Inf в loss
             if torch.isnan(loss) or torch.isinf(loss):
                 print(f"⚠️  WARNING: Loss is {loss.item()}, skipping batch")
+                self.optimizer.zero_grad(set_to_none=True)
                 continue
             
             if self.scaler is not None:
@@ -138,6 +139,7 @@ class Trainer:
                 if torch.isnan(grad_norm) or torch.isinf(grad_norm):
                     print(f"⚠️  WARNING: Gradient norm is {grad_norm}, skipping batch")
                     self.optimizer.zero_grad(set_to_none=True)
+                    self.scaler.update()  # ВАЖНО: update() нужен даже при skip батча!
                     continue
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
