@@ -64,12 +64,12 @@ class ModelConfig:
     focal_gamma: float = 2.5
     focal_alpha_weight: float = 0.25
     cost_weight: float = 1.0
-    label_smoothing: float = 0.2           # УВЕЛИЧЕНО до 0.2
+    label_smoothing: float = 0.1           # СНИЖЕНО обратно (0.2 было слишком много)
     
     def __post_init__(self):
         if self.focal_alpha is None:
-            # Веса для редких классов (используются в weighted CE)
-            self.focal_alpha = [20.0, 1.0, 20.0]
+            # СБАЛАНСИРОВАННЫЕ веса (было 20 - слишком много!)
+            self.focal_alpha = [10.0, 1.0, 10.0]
 
 
 @dataclass
@@ -78,9 +78,9 @@ class TrainingConfig:
     # Размеры батчей
     batch_size: int = 512
     
-    # Оптимизатор (ОЧЕНЬ НИЗКИЙ LR)
-    learning_rate: float = 5e-5           # КРИТИЧЕСКИ СНИЖЕН (было 2e-4)
-    weight_decay: float = 1e-3            # УДВОЕН для сильной регуляризации
+    # Оптимизатор (УМЕРЕННЫЙ LR)
+    learning_rate: float = 1e-4           # УВЕЛИЧЕН (5e-5 было слишком мало)
+    weight_decay: float = 5e-4            # СНИЖЕН (1e-3 было слишком много)
     
     # Scheduler
     scheduler_type: str = "cosine"

@@ -3,6 +3,7 @@
 """
 import os
 import time
+from datetime import datetime
 import torch
 import torch.nn as nn
 import torch.nn.utils as U
@@ -252,7 +253,8 @@ class Trainer:
             # Вывод прогресса
             if verbose:
                 elapsed = time.time() - start_time
-                print(f"[{epoch:02d}] "
+                current_time = datetime.now().strftime("%H:%M:%S")
+                print(f"[{current_time}] [{epoch:02d}] "
                       f"train_loss={train_metrics['loss']:.4f} "
                       f"acc={train_metrics['accuracy']:.3f} | "
                       f"val_loss={val_metrics['loss']:.4f} "
@@ -342,8 +344,9 @@ class Trainer:
         
         for day_idx, train_loader in enumerate(train_data_loaders):
             if verbose:
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 print(f"\n{'='*60}")
-                print(f"ОБУЧЕНИЕ НА ДНЕ {day_idx + 1}/{len(train_data_loaders)}")
+                print(f"[{current_time}] ОБУЧЕНИЕ НА ДНЕ {day_idx + 1}/{len(train_data_loaders)}")
                 print(f"{'='*60}")
             
             # Обучение на текущем дне
@@ -361,7 +364,8 @@ class Trainer:
             self.save_model(save_path)
             
             if verbose:
-                print(f"День {day_idx + 1} завершен. Лучший macro-F1: {day_results['best_score']:.4f}")
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[{current_time}] День {day_idx + 1} завершен. Лучший macro-F1: {day_results['best_score']:.4f}")
         
         # Возвращаем результаты последнего дня (финальное состояние модели)
         return all_results[-1] if all_results else None

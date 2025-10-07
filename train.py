@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
 Основной скрипт для обучения модели DeepLOB
+Все параметры настраиваются в src/config.py
 """
 import os
 import sys
-import argparse
 import numpy as np
-import pandas as pd
 import torch
 from pathlib import Path
 
@@ -15,72 +14,11 @@ sys.path.append(str(Path(__file__).parent / "src"))
 
 from config import Config
 from load_data import load_data
-from tools import build_barrier_labels, make_windows
+from tools import build_barrier_labels
 from model import create_model, create_optimizer_and_scheduler
-from dataset import NpWindowDataset, BalancedBatchSampler, BalancedBatchBatchSampler
+from dataset import LazyWindowDataset, BalancedBatchSampler, BalancedBatchBatchSampler
 from trainer import create_trainer
 from torch.utils.data import DataLoader
-
-
-def parse_args():
-    """Парсинг аргументов командной строки"""
-    parser = argparse.ArgumentParser(description="Обучение модели DeepLOB")
-    
-    # Параметры данных
-    parser.add_argument("--train_dates", type=str, default="2025-09-22",
-                       help="Список дат для обучения (через запятую)")
-    parser.add_argument("--val_date", type=str, default="2025-09-23",
-                       help="Дата для валидации")
-    parser.add_argument("--test_date", type=str, default="2025-09-24",
-                       help="Дата для тестирования")
-    parser.add_argument("--data_folder", type=str, default="data",
-                       help="Папка с данными")
-    parser.add_argument("--instrument", type=str, default="Si-12.25",
-                       help="Инструмент")
-    
-    # Параметры модели
-    parser.add_argument("--tick_size", type=float, default=1.0,
-                       help="Размер тика инструмента")
-    parser.add_argument("--theta_ticks", type=int, default=5,
-                       help="Порог в тиках")
-    parser.add_argument("--horizon_sec", type=float, default=2.0,
-                       help="Горизонт в секундах")
-    parser.add_argument("--window_length", type=int, default=240,
-                       help="Длина окна")
-    parser.add_argument("--hidden_size", type=int, default=128,
-                       help="Размер скрытого слоя")
-    parser.add_argument("--dropout", type=float, default=0.3,
-                       help="Коэффициент dropout")
-    parser.add_argument("--use_cost_sensitive_focal", action="store_true", default=True,
-                       help="Использовать Cost-Sensitive Focal Loss (по умолчанию)")
-    parser.add_argument("--use_cost_sensitive", action="store_true", default=False,
-                       help="Использовать только стоимостно-чувствительный лосс")
-    parser.add_argument("--use_focal_loss", action="store_true", default=False,
-                       help="Использовать только Focal Loss")
-    parser.add_argument("--focal_gamma", type=float, default=2.0,
-                       help="Gamma для Focal Loss")
-    parser.add_argument("--focal_alpha_weight", type=float, default=0.25,
-                       help="Alpha weight для Focal Loss")
-    parser.add_argument("--cost_weight", type=float, default=1.0,
-                       help="Вес cost-sensitive компоненты")
-    
-    # Параметры обучения
-    parser.add_argument("--batch_size", type=int, default=512,
-                       help="Размер батча")
-    parser.add_argument("--learning_rate", type=float, default=1e-3,
-                       help="Скорость обучения")
-    parser.add_argument("--epochs", type=int, default=15,
-                       help="Количество эпох")
-    parser.add_argument("--seed", type=int, default=42,
-                       help="Семя для воспроизводимости")
-    
-    # Параметры сохранения
-    parser.add_argument("--save_path", type=str, default="best_deeplob_like.pt",
-                       help="Путь для сохранения модели")
-    parser.add_argument("--verbose", action="store_true", default=True,
-                       help="Выводить подробную информацию")
-    
-    return parser.parse_args()
 
 
 def setup_seed(seed: int):
@@ -95,36 +33,39 @@ def setup_seed(seed: int):
 
 def main():
     """Основная функция"""
-    args = parse_args()
+    # Создание конфигурации из config.py
+    config = Config.default()
+    
+    # Настройка параметров (такие же как в pipeline.ipynb)
+    config.data.train_dates = ["2025-09-22", "2025-09-23", "2025-09-25", "2025-09-26"]
+    config.data.val_date = "2025-09-29"
+    config.data.test_date = "2025-09-30"
+    config.data.data_folder = "./data/npy"
+    
+    config.model.tick_size = 1.0
+    config.model.theta_ticks = 5
+    config.model.horizon_sec = 2.0
+    config.model.window_length = 240
+    config.model.use_cost_sensitive_focal = True
+    
+    config.training.epochs = 15
     
     # Настройка семени
-    setup_seed(args.seed)
+    setup_seed(config.training.seed)
     
-    # Создание конфигурации
-    config = Config.from_args(args)
-    
+    print(f"PyTorch версия: {torch.__version__}")
+    print(f"CUDA доступна: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA версия: {torch.version.cuda}")
     print(f"Устройство: {config.training.device}")
-    print(f"Семя: {args.seed}")
-    print(f"Дни обучения: {config.data.train_dates}")
-    print(f"День валидации: {config.data.val_date}")
-    print(f"День тестирования: {config.data.test_date}")
-    print(f"Эпохи на день: {config.training.epochs}")
-    print(f"Размер батча: {config.training.batch_size}")
-    # Определяем название функции потерь
-    if config.model.use_cost_sensitive_focal:
-        loss_name = "Cost-Sensitive Focal Loss"
-    elif config.model.use_cost_sensitive:
-        loss_name = "Cost-Sensitive Loss"
-    else:
-        loss_name = "Focal Loss"
-    
-    print(f"Функция потерь: {loss_name}")
-    if config.model.use_cost_sensitive_focal:
-        print(f"  Gamma: {config.model.focal_gamma}, Alpha: {config.model.focal_alpha_weight}, Cost Weight: {config.model.cost_weight}")
     print()
     
-    # Загрузка и подготовка данных для обучения
+    # Вывод конфигурации
+    config.print_config()
+    
+    # Загрузка и подготовка данных для обучения (MEMORY-EFFICIENT VERSION)
     print("Загрузка данных для обучения...")
+    print("⚡ Используется LazyWindowDataset - экономия памяти!")
     train_data_loaders = []
     
     for i, train_date in enumerate(config.data.train_dates):
@@ -132,10 +73,11 @@ def main():
         
         # Загрузка данных
         features_file = config.data.get_features_file(train_date)
+        print(f"Файл признаков: {features_file}")
         prices_file = config.data.get_prices_file(train_date)
         X, ms, mid = load_data(features_file, prices_file)
         
-        # Построение меток и окон
+        # Построение меток
         y_all = build_barrier_labels(
             ms, mid, 
             tick_size=config.model.tick_size,
@@ -145,17 +87,19 @@ def main():
         
         # Фильтрация валидных меток
         valid = (y_all != -1)
-        Xv, yv, msv, midv = X[valid], y_all[valid], ms[valid], mid[valid]
+        Xv, yv = X[valid], y_all[valid]
         
-        # Создание окон
-        Xwin, end_idx = make_windows(Xv, config.model.window_length)
-        y_win = yv[end_idx]
+        # LAZY подход - окна создаются на лету, не храним все в памяти
+        train_ds = LazyWindowDataset(Xv, yv, config.model.window_length)
+        
+        # Метки для окон (метка окна = метка последнего элемента)
+        y_win = yv[config.model.window_length-1:]
         
         print(f"  Классы и счётчики: {np.unique(y_win, return_counts=True)}")
-        print(f"  Окна: {Xwin.shape} | метки: {y_win.shape}")
+        print(f"  Датасет: {len(train_ds)} окон | метки: {y_win.shape}")
+        print(f"  💾 Память: ~{Xv.nbytes / 1024**3:.2f} ГБ (вместо ~{len(train_ds) * config.model.window_length * Xv.shape[1] * 4 / 1024**3:.2f} ГБ)")
         
         # Создание DataLoader для этого дня
-        train_ds = NpWindowDataset(Xwin, y_win)
         base_sampler = BalancedBatchSampler(
             y_win, 
             batch_size=config.training.batch_size, 
@@ -163,11 +107,11 @@ def main():
             seed=config.training.seed
         )
         batch_sampler = BalancedBatchBatchSampler(base_sampler, config.training.batch_size)
-        train_dl = DataLoader(train_ds, batch_sampler=batch_sampler)
+        train_dl = DataLoader(train_ds, batch_sampler=batch_sampler, num_workers=0)
         train_data_loaders.append(train_dl)
     
-    # Загрузка данных для валидации
-    print(f"\nЗагрузка данных для валидации: {config.data.val_date}")
+    # Загрузка данных для валидации (MEMORY-EFFICIENT VERSION)
+    print(f"\n⚡ Загрузка данных для валидации: {config.data.val_date}")
     val_features_file = config.data.get_features_file(config.data.val_date)
     val_prices_file = config.data.get_prices_file(config.data.val_date)
     X_val, ms_val, mid_val = load_data(val_features_file, val_prices_file)
@@ -181,16 +125,17 @@ def main():
     
     valid_val = (y_val_all != -1)
     Xv_val, yv_val = X_val[valid_val], y_val_all[valid_val]
-    Xwin_val, end_idx_val = make_windows(Xv_val, config.model.window_length)
-    y_win_val = yv_val[end_idx_val]
     
-    val_ds = NpWindowDataset(Xwin_val, y_win_val)
-    val_dl = DataLoader(val_ds, batch_size=config.training.batch_size, shuffle=False)
+    # LAZY подход
+    val_ds = LazyWindowDataset(Xv_val, yv_val, config.model.window_length)
+    y_win_val = yv_val[config.model.window_length-1:]
+    val_dl = DataLoader(val_ds, batch_size=config.training.batch_size, shuffle=False, num_workers=0)
     
-    print(f"Валидация: {Xwin_val.shape} | метки: {y_win_val.shape}")
+    print(f"Валидация: {len(val_ds)} окон | метки: {y_win_val.shape}")
+    print(f"  💾 Память: ~{Xv_val.nbytes / 1024**3:.2f} ГБ")
     
-    # Загрузка данных для тестирования
-    print(f"\nЗагрузка данных для тестирования: {config.data.test_date}")
+    # Загрузка данных для тестирования (MEMORY-EFFICIENT VERSION)
+    print(f"\n⚡ Загрузка данных для тестирования: {config.data.test_date}")
     test_features_file = config.data.get_features_file(config.data.test_date)
     test_prices_file = config.data.get_prices_file(config.data.test_date)
     X_test, ms_test, mid_test = load_data(test_features_file, test_prices_file)
@@ -204,22 +149,29 @@ def main():
     
     valid_test = (y_test_all != -1)
     Xv_test, yv_test = X_test[valid_test], y_test_all[valid_test]
-    Xwin_test, end_idx_test = make_windows(Xv_test, config.model.window_length)
-    y_win_test = yv_test[end_idx_test]
     
-    test_ds = NpWindowDataset(Xwin_test, y_win_test)
-    test_dl = DataLoader(test_ds, batch_size=config.training.batch_size, shuffle=False)
+    # LAZY подход
+    test_ds = LazyWindowDataset(Xv_test, yv_test, config.model.window_length)
+    y_win_test = yv_test[config.model.window_length-1:]
+    test_dl = DataLoader(test_ds, batch_size=config.training.batch_size, shuffle=False, num_workers=0)
     
-    print(f"Тестирование: {Xwin_test.shape} | метки: {y_win_test.shape}")
+    print(f"Тестирование: {len(test_ds)} окон | метки: {y_win_test.shape}")
+    print(f"  💾 Память: ~{Xv_test.nbytes / 1024**3:.2f} ГБ")
+    print()
+    
+    print("Все DataLoader'ы созданы успешно!")
+    print(f"Количество дней обучения: {len(train_data_loaders)}")
+    print(f"Валидационный DataLoader: {len(val_dl)} батчей")
+    print(f"Тестовый DataLoader: {len(test_dl)} батчей")
     print()
     
     # Создание модели
-    print("Создание модели...")
     model, criterion = create_model(config.model)
     optimizer, scheduler, scaler = create_optimizer_and_scheduler(model, config.training)
     
     model = model.to(config.training.device)
     print(f"Модель создана: {sum(p.numel() for p in model.parameters())} параметров")
+    print(f"Устройство: {config.training.device}")
     print()
     
     # Создание тренера
@@ -240,20 +192,20 @@ def main():
         val_loader=val_dl,
         epochs_per_day=config.training.epochs,
         save_path_template="model_day_{}.pt",
-        verbose=args.verbose
+        verbose=True
     )
     
     print(f"\nЛучший macro-F1 на валидации: {training_results['best_score']:.4f}")
     
     # Тестирование
-    print("\nТестирование...")
     test_results = trainer.test(test_dl)
     
     # Сохранение финальной модели
-    trainer.save_model(args.save_path)
+    model_path = "best_deeplob_like.pt"
+    trainer.save_model(model_path)
     
     print(f"\nОбучение завершено!")
-    print(f"Финальная модель сохранена: {os.path.abspath(args.save_path)}")
+    print(f"Финальная модель сохранена: {os.path.abspath(model_path)}")
     print(f"Промежуточные модели сохранены: model_day_1.pt, model_day_2.pt, ...")
 
 
